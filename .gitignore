@@ -10,5 +10,6 @@ x64/
 *.xcodeproj
 *.xcuserstate
 */xcuserdata/*
+.vscode/
 dependencies/
 libs/ffmpeg
