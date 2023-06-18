@@ -19,9 +19,10 @@ MIDISceneFile::~MIDISceneFile(){}
 
 MIDISceneFile::MIDISceneFile(const std::string & midiFilePath, const SetOptions & options) : MIDIScene() {
 
-	_filePath = midiFilePath;
+	_midiFilePath = midiFilePath;
+
 	// MIDI processing.
-	_midiFile = MIDIFile(_filePath);
+	_midiFile = MIDIFile(_midiFilePath);
 
 	updateSets(options);
 
@@ -121,7 +122,7 @@ void MIDISceneFile::print() const {
 
 void MIDISceneFile::save(std::ofstream& file) const {
 	// Do it the dumb way.
-	std::ifstream input(_filePath);
+	std::ifstream input(_midiFilePath);
 	if(input.is_open() && file.is_open()){
 		std::copy(std::istreambuf_iterator<char>(input),
 				  std::istreambuf_iterator<char>(),
@@ -130,6 +131,6 @@ void MIDISceneFile::save(std::ofstream& file) const {
 	input.close();
 }
 
-const std::string& MIDISceneFile::filePath() const {
-	return _filePath;
+const std::string& MIDISceneFile::midiFilePath() const {
+	return _midiFilePath;
 }

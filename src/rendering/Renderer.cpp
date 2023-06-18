@@ -1,3 +1,6 @@
+#define MINIAUDIO_IMPLEMENTATION
+#define MA_LOG_LEVEL MA_LOG_LEVEL_DEBUG
+
 #include "../helpers/ProgramUtilities.h"
 #include "../helpers/ResourcesManager.h"
 #include "../helpers/ImGuiStyle.h"
@@ -17,6 +20,8 @@
 
 #include <algorithm>
 #include <fstream>
+
+#include "../libs/miniaudio.h"
 
 
 bool ImGuiSliderPercent(const char* label, float* v, float v_min, float v_max){
@@ -137,7 +142,7 @@ Renderer::Renderer(const Configuration& config) :
 
 Renderer::~Renderer() {}
 
-bool Renderer::loadFile(const std::string& midiFilePath) {
+bool Renderer::loadMidiFile(const std::string& midiFilePath) {
 	std::shared_ptr<MIDIScene> scene(nullptr);
 
 	try {
@@ -155,6 +160,42 @@ bool Renderer::loadFile(const std::string& midiFilePath) {
 	_scene = scene;
 	_score = std::make_shared<Score>(_scene->secondsPerMeasure());
 	applyAllSettings();
+	return true;
+}
+
+
+
+
+bool Renderer::loadAudioFile(const std::string& audioFilePath) {
+	ma_result result1;
+	ma_result result2;
+
+	if (_soundLoaded) {
+		ma_engine_uninit(&_engine);
+		ma_sound_uninit(&_sound);
+	}
+
+	result1 = ma_engine_init(NULL, &_engine);
+	std::cout << "[AUDIO] Engine initializing..." << std::endl;
+	if (result1 != MA_SUCCESS) {
+		std::cerr << "[AUDIO] Engine not initialized." << std::endl;
+		return false;  // Failed to initialize the engine.
+	}
+
+	char* audioFilePathChars = new char[strlen(audioFilePath.c_str()) + 1]; 
+	strcpy(audioFilePathChars, audioFilePath.c_str());
+	
+
+	result2 = ma_sound_init_from_file(&_engine, audioFilePathChars, NULL, NULL, NULL, &_sound);
+	std::cout << "[AUDIO] File \"" << audioFilePathChars << "\" initializing..." << std::endl;
+	if (result2 != MA_SUCCESS) {
+		std::cerr << "[AUDIO] Could not init file \"" << audioFilePathChars << "\"." << std::endl;
+		return false;
+	}
+	
+	_lastAudioPath = audioFilePath;
+	_soundLoaded = true;
+
 	return true;
 }
 
@@ -404,13 +445,29 @@ SystemAction Renderer::drawGUI(const float currentTime) {
 		// Load button.
 		if(ImGui::Button("Load MIDI file...")) {
 			// Read arguments.
-			nfdchar_t *outPath = NULL;
-			nfdresult_t result = NFD_OpenDialog(NULL, NULL, &outPath);
-			if (result == NFD_OKAY) {
-				loadFile(std::string(outPath));
+			nfdchar_t *midiOutPath = NULL;
+			nfdresult_t midiResult = NFD_OpenDialog(NULL, NULL, &midiOutPath);
+			if (midiResult == NFD_OKAY) {
+				loadMidiFile(std::string(midiOutPath));
 			}
 		}
-		ImGuiSameLine(COLUMN_SIZE);
+		ImGuiSameLine();
+		
+		// Load audio button.
+		if(ImGui::Button("Load Audio file...")) {
+			std::cout << "Test." << std::endl;
+			// Read arguments.
+			nfdchar_t *audioOutPath = NULL;
+			nfdresult_t audioResult = NFD_OpenDialog(NULL, NULL, &audioOutPath);
+			if (audioResult == NFD_OKAY) {
+				loadAudioFile(std::string(audioOutPath));
+				std::cout << "Aaaalright" << std::endl;
+			}
+		}
+
+		ImGuiSameLine();
+		
+
 		if(_liveplay){
 			if (ImGui::Button("Clear and stop session")) {
 				_scene = std::make_shared<MIDISceneEmpty>();
@@ -441,7 +498,10 @@ SystemAction Renderer::drawGUI(const float currentTime) {
 			}
 		}
 
+
+
 		ImGui::Separator();
+
 
 		ImGuiPushItemWidth(100);
 		if (ImGui::Combo("Quality", (int *)(&_state.quality), "Half\0Low\0Medium\0High\0Double\0\0")) {
@@ -660,6 +720,18 @@ SystemAction Renderer::showTopButtons(double currentTime){
 	if (ImGui::Button(_shouldPlay ? "Pause (p)" : "Play (p)")) {
 		_shouldPlay = !_shouldPlay;
 		_timerStart = float(currentTime) - _timer;
+		
+		if (_soundLoaded) {
+			if (_shouldPlay) {
+				std::cout << "[AUDIO] File Starting/Resuming..." << std::endl;
+				ma_sound_start(&_sound);
+				std::cout << "[AUDIO] File Started/Resumed." << std::endl;
+			} else {
+				std::cout << "[AUDIO] File Pausing..." << std::endl;
+				ma_sound_stop(&_sound);
+				std::cout << "[AUDIO] File Paused." << std::endl;
+			}
+		}
 	}
 	ImGuiSameLine();
 	if (ImGui::Button("Restart (r)")) {
@@ -1483,6 +1555,16 @@ void Renderer::reset() {
 	_timer = -_state.prerollTime;
 	_timerStart = DEBUG_SPEED * float(glfwGetTime()) + (_shouldPlay ? _state.prerollTime : 0.0f);
 	_scene->resetParticles();
+
+	if (_soundLoaded) {
+		// Restart sound
+		std::cout << "[AUDIO] Restarting sound..." << std::endl;
+
+		ma_sound_seek_to_pcm_frame(&_sound, 0);
+		// if (_shouldPlay) {
+		// 	ma_sound_start(&_sound);
+		// }
+	}
 }
 
 void Renderer::setState(const State & state){
@@ -1550,6 +1632,7 @@ void  Renderer::setGUIScale(float scale){
 void Renderer::updateConfiguration(Configuration& config){
 	// Reset
 	config.lastMidiPath = "";
+	config.lastAudioPath = "";
 	config.lastMidiDevice = "";
 	// General settings
 	config.fullscreen = _fullscreen;
@@ -1560,8 +1643,10 @@ void Renderer::updateConfiguration(Configuration& config){
 	// MIDI File.
 	std::shared_ptr<MIDISceneFile> fileScene = std::dynamic_pointer_cast<MIDISceneFile>(_scene);
 	if(fileScene){
-		config.lastMidiPath = fileScene->filePath();
+		config.lastMidiPath = fileScene->midiFilePath();
+		config.lastAudioPath = _lastAudioPath;
 	}
+	
 	// MIDI device.
 	std::shared_ptr<MIDISceneLive> liveScene = std::dynamic_pointer_cast<MIDISceneLive>(_scene);
 	if(liveScene){

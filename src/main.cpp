@@ -68,7 +68,7 @@ void drop_callback(GLFWwindow* window, int count, const char** paths){
 		const bool isConfig = extension == "ini" || extension == "config";
 		// Attempt to load MIDI if not already loaded.
 		if(!loadedMIDI && isMIDI){
-			loadedMIDI = renderer->loadFile(path);
+			loadedMIDI = renderer->loadMidiFile(path);
 		}
 		// Attempt to load state if not already loaded.
 		if(!loadedConfig && isConfig){
@@ -224,8 +224,14 @@ int main( int argc, char** argv) {
 
 		// Load midi file if specified.
 		if(!config.lastMidiPath.empty()){
-			renderer.loadFile(config.lastMidiPath);
+			renderer.loadMidiFile(config.lastMidiPath);
 		}
+
+		// Load audio file if specified.
+		if(!config.lastAudioPath.empty()){
+			renderer.loadAudioFile(config.lastAudioPath);
+		}
+		
 		// Apply custom state.
 		State state;
 		if(!config.lastConfigPath.empty()){

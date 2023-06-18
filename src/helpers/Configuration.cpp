@@ -99,8 +99,11 @@ Configuration::Configuration(const std::string& path, const std::vector<std::str
 		}
 		// File options
 		{
-			if(name == "midi" && vals.size() >= 1){
+			if(name == "midiFile" && vals.size() >= 1){
 				lastMidiPath = join(vals, " ");
+			}
+			if(name == "audioFile" && vals.size() >= 1){
+				lastAudioPath = join(vals, " ");
 			}
 			if(name == "config" && vals.size() >= 1){
 			   lastConfigPath = join(vals, " ");
@@ -227,7 +230,10 @@ void Configuration::save(const std::string& path){
 
 	// File options
 	if(!lastMidiPath.empty()){
-		outFile << "midi " << lastMidiPath << "\n";
+		outFile << "midiFile " << lastMidiPath << "\n";
+	}
+	if(!lastAudioPath.empty()){
+		outFile << "audioFile " << lastAudioPath << "\n";
 	}
 	if(!lastConfigPath.empty()){
 		outFile << "config " << lastConfigPath << "\n";

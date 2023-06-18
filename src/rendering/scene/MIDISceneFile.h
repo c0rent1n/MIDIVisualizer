@@ -28,12 +28,12 @@ public:
 	
 	void save(std::ofstream& file) const;
 
-	const std::string& filePath() const;
+	const std::string& midiFilePath() const;
 
 private:
 
 	MIDIFile _midiFile;
-	std::string _filePath;
+	std::string _midiFilePath;
 	double _previousTime = 0.0;
 	
 };

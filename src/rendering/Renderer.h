@@ -16,6 +16,8 @@
 
 #include "State.h"
 
+#include "../libs/miniaudio.h"
+
 #define DEBUG_SPEED (1.0f)
 
 struct SystemAction {
@@ -38,7 +40,9 @@ public:
 
 	~Renderer();
 	
-	bool loadFile(const std::string & midiFilePath);
+	bool loadMidiFile(const std::string & midiFilePath);
+	
+	bool loadAudioFile(const std::string & audioFilePath);
 
 	bool connectDevice(const std::string & deviceName);
 
@@ -181,6 +185,11 @@ private:
 	ScreenQuad _backgroundTexture;
 	ScreenQuad _fxaa;
 	std::shared_ptr<Score> _score;
+	
+	ma_sound _sound;
+	ma_engine _engine;
+	std::string _lastAudioPath;
+	bool _soundLoaded = false;
 
 	glm::ivec2 _windowSize;
 	glm::ivec2 _backbufferSize;

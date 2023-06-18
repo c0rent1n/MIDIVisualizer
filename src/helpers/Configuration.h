@@ -61,6 +61,7 @@ public:
 
 	// General settings (will be saved)
 	std::string lastMidiPath;
+	std::string lastAudioPath;
 	std::string lastMidiDevice;
 	std::string lastConfigPath;
 	glm::ivec2 windowSize = { 1280, 600 };
