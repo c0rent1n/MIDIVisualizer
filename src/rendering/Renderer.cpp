@@ -718,20 +718,7 @@ void Renderer::synchronizeColors(const ColorArray & colors){
 
 SystemAction Renderer::showTopButtons(double currentTime){
 	if (ImGui::Button(_shouldPlay ? "Pause (p)" : "Play (p)")) {
-		_shouldPlay = !_shouldPlay;
-		_timerStart = float(currentTime) - _timer;
-		
-		if (_soundLoaded) {
-			if (_shouldPlay) {
-				std::cout << "[AUDIO] File Starting/Resuming..." << std::endl;
-				ma_sound_start(&_sound);
-				std::cout << "[AUDIO] File Started/Resumed." << std::endl;
-			} else {
-				std::cout << "[AUDIO] File Pausing..." << std::endl;
-				ma_sound_stop(&_sound);
-				std::cout << "[AUDIO] File Paused." << std::endl;
-			}
-		}
+		playPause(float(currentTime) - _timer);
 	}
 	ImGuiSameLine();
 	if (ImGui::Button("Restart (r)")) {
@@ -1533,8 +1520,7 @@ void Renderer::keyPressed(int key, int action) {
 
 	if (action == GLFW_PRESS) {
 		if (key == GLFW_KEY_P) {
-			_shouldPlay = !_shouldPlay;
-			_timerStart = DEBUG_SPEED * float(glfwGetTime()) - _timer;
+			playPause(DEBUG_SPEED * float(glfwGetTime()) - _timer);
 		}
 		else if (key == GLFW_KEY_R) {
 			reset();
@@ -1551,6 +1537,23 @@ void Renderer::keyPressed(int key, int action) {
 	}
 }
 
+void Renderer::playPause(float timerStart) {
+	_shouldPlay = !_shouldPlay;
+	if (_soundLoaded) {
+		if (_shouldPlay) {
+			_timerStart = timerStart;
+			std::cout << "[AUDIO] File Starting/Resuming..." << (timerStart) << std::endl;
+			// ma_sound_seek_to_pcm_frame(&_sound, static_cast<int>(timerStart * 44100));
+			ma_sound_start(&_sound);
+			std::cout << "[AUDIO] File Started/Resumed." << std::endl;
+		} else {
+			std::cout << "[AUDIO] File Pausing..." << std::endl;
+			ma_sound_stop(&_sound);
+			std::cout << "[AUDIO] File Paused." << std::endl;
+		}
+	}
+}
+
 void Renderer::reset() {
 	_timer = -_state.prerollTime;
 	_timerStart = DEBUG_SPEED * float(glfwGetTime()) + (_shouldPlay ? _state.prerollTime : 0.0f);
@@ -1561,9 +1564,11 @@ void Renderer::reset() {
 		std::cout << "[AUDIO] Restarting sound..." << std::endl;
 
 		ma_sound_seek_to_pcm_frame(&_sound, 0);
-		// if (_shouldPlay) {
-		// 	ma_sound_start(&_sound);
-		// }
+
+		if (_shouldPlay) {
+			// In most cases, the sound is already started and this call would be useless, but if the sound has arrived to its end while the scene is still playing, it's required to start it again
+			ma_sound_start(&_sound);
+		}
 	}
 }
 

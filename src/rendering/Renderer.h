@@ -142,6 +142,8 @@ private:
 
 	void applyAllSettings();
 	
+	void playPause(float timerStart);
+	
 	void reset();
 
 	void startRecording();
