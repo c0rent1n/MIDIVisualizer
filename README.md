@@ -101,6 +101,14 @@ MIDIVisualizer depends on the [GLFW3 library](http://www.glfw.org), the [Native 
 On macOS and Windows, no additional dependencies are required. On Linux, you will need to have the following packages installed: `xorg-dev libgtk-3-dev libasound2-dev`, and if you plan on using FFMPEG, `ffmpeg libavcodec-dev libavformat-dev libavdevice-dev`.
 
 
+#### FFMPEG installation
+
+1. Download the archive for your system on: https://github.com/kosua20/MIDIVisualizer-dependencies/releases (64 bits release). 
+2. Uncompress the root "ffmpeg/" folder in "/libs".
+3. Replace the FindFFMPEG.cmake in /libs with the one found in "ffmpeg/share/ffmpeg".
+4. Use the x86_amd64 compiler to build the project in "Release" mode.
+
+
 ## Development
 
 The main development steps were:

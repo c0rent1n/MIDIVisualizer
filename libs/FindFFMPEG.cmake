@@ -1,148 +1,175 @@
-# vim: ts=2 sw=2
-# - Try to find the required ffmpeg components(default: AVFORMAT, AVUTIL, AVCODEC)
+# Distributed under the OSI-approved BSD 3-Clause License.
 #
-# Once done this will define
-#  FFMPEG_FOUND         - System has the all required components.
-#  FFMPEG_INCLUDE_DIRS  - Include directory necessary for using the required components headers.
-#  FFMPEG_LIBRARIES     - Link these to use the required ffmpeg components.
-#  FFMPEG_DEFINITIONS   - Compiler switches required for using the required ffmpeg components.
+#.rst:
+# FindFFMPEG
+# --------
 #
-# For each of the components it will additionally set.
-#   - AVCODEC
-#   - AVDEVICE
-#   - AVFORMAT
-#   - AVUTIL
-#   - POSTPROCESS
-#   - SWSCALE
-# the following variables will be defined
-#  <component>_FOUND        - System has <component>
-#  <component>_INCLUDE_DIRS - Include directory necessary for using the <component> headers
-#  <component>_LIBRARIES    - Link these to use <component>
-#  <component>_DEFINITIONS  - Compiler switches required for using <component>
-#  <component>_VERSION      - The components version
+# Find the FFPMEG libraries
 #
-# Copyright (c) 2006, Matthias Kretz, <kretz@kde.org>
-# Copyright (c) 2008, Alexander Neundorf, <neundorf@kde.org>
-# Copyright (c) 2011, Michael Jansen, <kde@michael-jansen.biz>
+# Result Variables
+# ^^^^^^^^^^^^^^^^
 #
-# Redistribution and use is allowed according to the terms of the BSD license.
-# For details see the accompanying COPYING-CMAKE-SCRIPTS file.
+# The following variables will be defined:
+#
+#  ``FFMPEG_FOUND``
+#    True if FFMPEG found on the local system
+#
+#  ``FFMPEG_INCLUDE_DIRS``
+#    Location of FFMPEG header files
+#
+#  ``FFMPEG_LIBRARY_DIRS``
+#    Location of FFMPEG libraries
+#
+#  ``FFMPEG_LIBRARIES``
+#    List of the FFMPEG libraries found
+#
+#
 
-include(FindPackageHandleStandardArgs)
+include(${CMAKE_ROOT}/Modules/FindPackageHandleStandardArgs.cmake)
+include(${CMAKE_ROOT}/Modules/SelectLibraryConfigurations.cmake)
+include(${CMAKE_ROOT}/Modules/CMakeFindDependencyMacro.cmake)
 
-# The default components were taken from a survey over other FindFFMPEG.cmake files
-if (NOT FFMPEG_FIND_COMPONENTS)
-  set(FFMPEG_FIND_COMPONENTS AVCODEC AVFORMAT AVUTIL SWSCALE)
-endif ()
+set(FFMPEG_VERSION "4.2")
+set(FFMPEG_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/libs/ffmpeg)
 
-#
-### Macro: set_component_found
-#
-# Marks the given component as found if both *_LIBRARIES AND *_INCLUDE_DIRS is present.
-#
-macro(set_component_found _component )
-  if (${_component}_LIBRARIES AND ${_component}_INCLUDE_DIRS)
-    # message(STATUS "  - ${_component} found.")
-    set(${_component}_FOUND TRUE)
-  else ()
-    # message(STATUS "  - ${_component} not found.")
-  endif ()
-endmacro()
+find_dependency(Threads)
+if(UNIX AND NOT APPLE)
+  list(APPEND FFMPEG_PLATFORM_DEPENDENT_LIBS -pthread -lX11)
+endif()
 
-#
-### Macro: find_component
-#
-# Checks for the given component by invoking pkgconfig and then looking up the libraries and
-# include directories.
-#
-macro(find_component _component _pkgconfig _library _header)
+if(OFF)
+  find_dependency(BZip2)
+  get_target_property(BZip2_LIBRARY_RELEASE BZip2::BZip2 IMPORTED_LOCATION_RELEASE)
+  get_target_property(BZip2_LIBRARY_DEBUG BZip2::BZip2 IMPORTED_LOCATION_DEBUG)
+  list(APPEND FFMPEG_PLATFORM_DEPENDENT_LIBS "$<$<CONFIG:Debug>:${BZip2_LIBRARY_DEBUG}>$<$<CONFIG:Release>:${BZip2_LIBRARY_RELEASE}>")
+endif()
 
-  if (NOT WIN32)
-     # use pkg-config to get the directories and then use these values
-     # in the FIND_PATH() and FIND_LIBRARY() calls
-     find_package(PkgConfig)
-     if (PKG_CONFIG_FOUND)
-       pkg_check_modules(PC_${_component} ${_pkgconfig})
-     endif ()
-  endif (NOT WIN32)
+if(OFF)
+  find_dependency(LibLZMA)
+  list(APPEND FFMPEG_PLATFORM_DEPENDENT_LIBS "$<$<CONFIG:Debug>:${LibLZMA_LIBRARY_DEBUG}>$<$<CONFIG:Release>:${LibLZMA_LIBRARY_RELEASE}>")
+endif()
 
-  find_path(${_component}_INCLUDE_DIRS ${_header}
-    HINTS
-      ${PC_LIB${_component}_INCLUDEDIR}
-      ${PC_LIB${_component}_INCLUDE_DIRS}
-    PATH_SUFFIXES
-      ffmpeg
+#  Platform dependent libraries required by FFMPEG
+if(WIN32)
+  if(NOT CYGWIN)
+    list(APPEND FFMPEG_PLATFORM_DEPENDENT_LIBS wsock32 ws2_32 secur32 bcrypt)
+  endif()
+else()
+  list(APPEND FFMPEG_PLATFORM_DEPENDENT_LIBS m)
+endif()
+
+macro(FFMPEG_FIND varname shortname headername)
+  if(NOT FFMPEG_${varname}_INCLUDE_DIRS)
+    find_path(FFMPEG_${varname}_INCLUDE_DIRS NAMES lib${shortname}/${headername} ${headername} PATHS ${FFMPEG_ROOT}/include/ NO_DEFAULT_PATH)
+  endif()
+  if(NOT FFMPEG_${varname}_LIBRARY)
+    find_library(FFMPEG_${varname}_LIBRARY_RELEASE NAMES ${shortname} PATHS ${FFMPEG_ROOT}/lib/ NO_DEFAULT_PATH)
+    get_filename_component(FFMPEG_${varname}_LIBRARY_RELEASE_DIR ${FFMPEG_${varname}_LIBRARY_RELEASE} DIRECTORY)
+    find_library(FFMPEG_${varname}_LIBRARY_DEBUG NAMES ${shortname}d ${shortname} PATHS ${FFMPEG_ROOT}/debug/ PATH_SUFFIXES ffmpeg ffmpeg/lib ffmpeg/debug/lib debug/ffmpeg/lib NO_DEFAULT_PATH)
+    get_filename_component(FFMPEG_${varname}_LIBRARY_DEBUG_DIR ${FFMPEG_${varname}_LIBRARY_DEBUG} DIRECTORY)
+    select_library_configurations(FFMPEG_${varname})
+  endif()
+  if (FFMPEG_${varname}_LIBRARY AND FFMPEG_${varname}_INCLUDE_DIRS)
+    set(FFMPEG_${varname}_FOUND 1)
+    list(APPEND FFMPEG_LIBRARY_DIRS ${FFMPEG_${varname}_LIBRARY_RELEASE_DIR} ${FFMPEG_${varname}_LIBRARY_DEBUG_DIR})
+  endif()
+endmacro(FFMPEG_FIND)
+
+macro(FFMPEG_FIND_GENEX varname shortname headername)
+  if(NOT FFMPEG_${varname}_INCLUDE_DIRS)
+    find_path(FFMPEG_${varname}_INCLUDE_DIRS NAMES lib${shortname}/${headername} ${headername} PATH_SUFFIXES ffmpeg PATHS ${FFMPEG_ROOT}/include/)
+  endif()
+  if(NOT FFMPEG_${varname}_LIBRARY)
+    find_library(FFMPEG_${varname}_LIBRARY_RELEASE NAMES ${shortname} PATH_SUFFIXES ffmpeg ffmpeg/lib PATHS ${FFMPEG_ROOT}/lib/)
+    get_filename_component(FFMPEG_${varname}_LIBRARY_RELEASE_DIR ${FFMPEG_${varname}_LIBRARY_RELEASE} DIRECTORY)
+    find_library(FFMPEG_${varname}_LIBRARY_DEBUG NAMES ${shortname}d ${shortname} PATHS debug PATH_SUFFIXES ffmpeg ffmpeg/lib ffmpeg/debug/lib debug/ffmpeg/lib  PATHS ${FFMPEG_ROOT}/debug/)
+    get_filename_component(FFMPEG_${varname}_LIBRARY_DEBUG_DIR ${FFMPEG_${varname}_LIBRARY_DEBUG} DIRECTORY)
+    set(FFMPEG_${varname}_LIBRARY "$<$<CONFIG:Debug>:${FFMPEG_${varname}_LIBRARY_DEBUG}>$<$<CONFIG:Release>:${FFMPEG_${varname}_LIBRARY_RELEASE}>" CACHE STRING "")
+    set(FFMPEG_${varname}_LIBRARIES ${FFMPEG_${varname}_LIBRARY} CACHE STRING "")
+  endif()
+  if (FFMPEG_${varname}_LIBRARY AND FFMPEG_${varname}_INCLUDE_DIRS)
+    set(FFMPEG_${varname}_FOUND 1)
+    list(APPEND FFMPEG_LIBRARY_DIRS ${FFMPEG_${varname}_LIBRARY_RELEASE_DIR} ${FFMPEG_${varname}_LIBRARY_DEBUG_DIR})
+  endif()
+endmacro(FFMPEG_FIND_GENEX)
+
+if(WIN32)
+  FFMPEG_FIND_GENEX(libzlib zlib       zlib.h)
+else()
+  FFMPEG_FIND_GENEX(libzlib z          zlib.h)
+endif()
+
+if(APPLE)
+  find_library(VT_UNIT VideoToolbox)
+  if (NOT VT_UNIT)
+      message(FATAL_ERROR "VideoToolbox not found")
+  endif()
+  find_library(AT_UNIT AudioToolbox)
+  if (NOT AT_UNIT)
+      message(FATAL_ERROR "AudioToolbox not found")
+  endif()
+  find_library(SEC_UNIT Security)
+  if (NOT SEC_UNIT)
+      message(FATAL_ERROR "Security not found")
+  endif()
+  find_library(CF_UNIT CoreFoundation)
+  if (NOT CF_UNIT)
+      message(FATAL_ERROR "CoreFoundation not found")
+  endif()
+  find_library(CM_UNIT CoreMedia)
+  if (NOT CM_UNIT)
+      message(FATAL_ERROR "CoreMedia not found")
+  endif()
+  find_library(CV_UNIT CoreVideo)
+  if (NOT CV_UNIT)
+      message(FATAL_ERROR "CoreVideo not found")
+  endif()
+  find_package(Iconv QUIET)
+  list(APPEND FFMPEG_PLATFORM_DEPENDENT_LIBS ${VT_UNIT} ${AT_UNIT} ${SEC_UNIT} ${CF_UNIT} ${CM_UNIT} ${CV_UNIT} ${Iconv_LIBRARIES})
+endif()
+
+FFMPEG_FIND(libavcodec    avcodec    avcodec.h)
+FFMPEG_FIND(libavdevice   avdevice   avdevice.h)
+FFMPEG_FIND(libavfilter   avfilter   avfilter.h)
+FFMPEG_FIND(libavformat   avformat   avformat.h)
+FFMPEG_FIND(libavresample avresample avresample.h)
+FFMPEG_FIND(libavutil     avutil     avutil.h)
+FFMPEG_FIND(libswresample swresample swresample.h)
+FFMPEG_FIND(libswscale    swscale    swscale.h)
+
+if (FFMPEG_libavcodec_FOUND AND FFMPEG_libavdevice_FOUND AND FFMPEG_libavfilter_FOUND AND FFMPEG_libavformat_FOUND AND FFMPEG_libavutil_FOUND AND FFMPEG_libswresample_FOUND AND FFMPEG_libswscale_FOUND AND FFMPEG_libzlib_FOUND)
+  list(APPEND FFMPEG_INCLUDE_DIRS ${FFMPEG_libavformat_INCLUDE_DIRS} ${FFMPEG_libavdevice_INCLUDE_DIRS} ${FFMPEG_libavcodec_INCLUDE_DIRS} ${FFMPEG_libavutil_INCLUDE_DIRS} ${FFMPEG_libswscale_INCLUDE_DIRS})
+  list(REMOVE_DUPLICATES FFMPEG_INCLUDE_DIRS)
+  list(REMOVE_DUPLICATES FFMPEG_LIBRARY_DIRS)
+
+  set(FFMPEG_libavcodec_VERSION "${FFMPEG_VERSION}" CACHE STRING "")
+  set(FFMPEG_libavdevice_VERSION "${FFMPEG_VERSION}" CACHE STRING "")
+  set(FFMPEG_libavfilter_VERSION "${FFMPEG_VERSION}" CACHE STRING "")
+  set(FFMPEG_libavformat_VERSION "${FFMPEG_VERSION}" CACHE STRING "")
+  if(FFMPEG_libavresample_FOUND)
+    set(FFMPEG_libavresample_VERSION "${FFMPEG_VERSION}" CACHE STRING "")
+  endif()
+  set(FFMPEG_libavutil_VERSION "${FFMPEG_VERSION}" CACHE STRING "")
+  set(FFMPEG_libswresample_VERSION "${FFMPEG_VERSION}" CACHE STRING "")
+  set(FFMPEG_libswscale_VERSION "${FFMPEG_VERSION}" CACHE STRING "")
+
+  list(APPEND FFMPEG_LIBRARIES
+    ${FFMPEG_libavdevice_LIBRARY}
+    ${FFMPEG_libavfilter_LIBRARY}
+    ${FFMPEG_libavformat_LIBRARY}
+    ${FFMPEG_libswscale_LIBRARY}
+    ${FFMPEG_libavcodec_LIBRARY}
+    ${FFMPEG_libswresample_LIBRARY}
+    ${FFMPEG_libavresample_LIBRARY}
+    ${FFMPEG_libavutil_LIBRARY} 
+    ${FFMPEG_libzlib_LIBRARY}
+    ${FFMPEG_PLATFORM_DEPENDENT_LIBS}
   )
+  set(FFMPEG_LIBRARY ${FFMPEG_LIBRARIES})
 
-  find_library(${_component}_LIBRARIES NAMES ${_library}
-      HINTS
-      ${PC_LIB${_component}_LIBDIR}
-      ${PC_LIB${_component}_LIBRARY_DIRS}
-  )
+  set(FFMPEG_LIBRARIES ${FFMPEG_LIBRARIES} CACHE STRING "")
+  set(FFMPEG_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIRS} CACHE STRING "")
+  set(FFMPEG_LIBRARY_DIRS ${FFMPEG_LIBRARY_DIRS} CACHE STRING "")
+endif()
 
-  set(${_component}_DEFINITIONS  ${PC_${_component}_CFLAGS_OTHER} CACHE STRING "The ${_component} CFLAGS.")
-  set(${_component}_VERSION      ${PC_${_component}_VERSION}      CACHE STRING "The ${_component} version number.")
-
-  set_component_found(${_component})
-
-  mark_as_advanced(
-    ${_component}_INCLUDE_DIRS
-    ${_component}_LIBRARIES
-    ${_component}_DEFINITIONS
-    ${_component}_VERSION)
-
-endmacro()
-
-
-# Check for cached results. If there are skip the costly part.
-if (NOT FFMPEG_LIBRARIES)
-
-  # Check for all possible component.
-  find_component(AVCODEC  libavcodec  avcodec  libavcodec/avcodec.h)
-  find_component(AVFORMAT libavformat avformat libavformat/avformat.h)
-  find_component(AVDEVICE libavdevice avdevice libavdevice/avdevice.h)
-  find_component(AVUTIL   libavutil   avutil   libavutil/avutil.h)
-  find_component(SWSCALE  libswscale  swscale  libswscale/swscale.h)
-  find_component(POSTPROC libpostproc postproc libpostproc/postprocess.h)
-
-  # Check if the required components were found and add their stuff to the FFMPEG_* vars.
-  foreach (_component ${FFMPEG_FIND_COMPONENTS})
-    if (${_component}_FOUND)
-      # message(STATUS "Required component ${_component} present.")
-      set(FFMPEG_LIBRARIES   ${FFMPEG_LIBRARIES}   ${${_component}_LIBRARIES})
-      set(FFMPEG_DEFINITIONS ${FFMPEG_DEFINITIONS} ${${_component}_DEFINITIONS})
-      list(APPEND FFMPEG_INCLUDE_DIRS ${${_component}_INCLUDE_DIRS})
-    else ()
-      # message(STATUS "Required component ${_component} missing.")
-    endif ()
-  endforeach ()
-
-  # Build the include path with duplicates removed.
-  if (FFMPEG_INCLUDE_DIRS)
-    list(REMOVE_DUPLICATES FFMPEG_INCLUDE_DIRS)
-  endif ()
-
-  # cache the vars.
-  set(FFMPEG_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIRS} CACHE STRING "The FFMPEG include directories." FORCE)
-  set(FFMPEG_LIBRARIES    ${FFMPEG_LIBRARIES}    CACHE STRING "The FFMPEG libraries." FORCE)
-  set(FFMPEG_DEFINITIONS  ${FFMPEG_DEFINITIONS}  CACHE STRING "The FFMPEG cflags." FORCE)
-
-  mark_as_advanced(FFMPEG_INCLUDE_DIRS
-                   FFMPEG_LIBRARIES
-                   FFMPEG_DEFINITIONS)
-
-endif ()
-
-# Now set the noncached _FOUND vars for the components.
-foreach (_component AVCODEC AVDEVICE AVFORMAT AVUTIL POSTPROCESS SWSCALE)
-  set_component_found(${_component})
-endforeach ()
-
-# Compile the list of required vars
-set(_FFMPEG_REQUIRED_VARS FFMPEG_LIBRARIES FFMPEG_INCLUDE_DIRS)
-foreach (_component ${FFMPEG_FIND_COMPONENTS})
-  list(APPEND _FFMPEG_REQUIRED_VARS ${_component}_LIBRARIES ${_component}_INCLUDE_DIRS)
-endforeach ()
-
-# Give a nice error message if some of the required vars are missing.
-find_package_handle_standard_args(FFMPEG DEFAULT_MSG ${_FFMPEG_REQUIRED_VARS})
+find_package_handle_standard_args(FFMPEG REQUIRED_VARS FFMPEG_LIBRARIES FFMPEG_LIBRARY_DIRS FFMPEG_INCLUDE_DIRS)
