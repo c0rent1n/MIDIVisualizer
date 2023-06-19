@@ -171,16 +171,18 @@ bool Renderer::loadAudioFile(const std::string& audioFilePath) {
 	ma_result result2;
 
 	if (_soundLoaded) {
-		ma_engine_uninit(&_engine);
+		std::cout << "[AUDIO] Uninitializing..." << std::endl;
+		// ma_engine_uninit(&_engine);
 		ma_sound_uninit(&_sound);
+	} else {
+		result1 = ma_engine_init(NULL, &_engine);
+		std::cout << "[AUDIO] Engine initializing..." << std::endl;
+		if (result1 != MA_SUCCESS) {
+			std::cerr << "[AUDIO] Engine not initialized." << std::endl;
+			return false;  // Failed to initialize the engine.
+		}
 	}
 
-	result1 = ma_engine_init(NULL, &_engine);
-	std::cout << "[AUDIO] Engine initializing..." << std::endl;
-	if (result1 != MA_SUCCESS) {
-		std::cerr << "[AUDIO] Engine not initialized." << std::endl;
-		return false;  // Failed to initialize the engine.
-	}
 
 	char* audioFilePathChars = new char[strlen(audioFilePath.c_str()) + 1]; 
 	strcpy(audioFilePathChars, audioFilePath.c_str());
@@ -195,6 +197,8 @@ bool Renderer::loadAudioFile(const std::string& audioFilePath) {
 	
 	_lastAudioPath = audioFilePath;
 	_soundLoaded = true;
+
+	updateAudioPosition();
 
 	return true;
 }
@@ -455,13 +459,11 @@ SystemAction Renderer::drawGUI(const float currentTime) {
 		
 		// Load audio button.
 		if(ImGui::Button("Load Audio file...")) {
-			std::cout << "Test." << std::endl;
 			// Read arguments.
 			nfdchar_t *audioOutPath = NULL;
 			nfdresult_t audioResult = NFD_OpenDialog(NULL, NULL, &audioOutPath);
 			if (audioResult == NFD_OKAY) {
 				loadAudioFile(std::string(audioOutPath));
-				std::cout << "Aaaalright" << std::endl;
 			}
 		}
 
