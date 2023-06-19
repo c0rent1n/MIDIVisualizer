@@ -142,6 +142,8 @@ private:
 
 	void applyAllSettings();
 	
+	void updateAudioPosition();
+	
 	void playPause(float timerStart);
 	
 	void reset();

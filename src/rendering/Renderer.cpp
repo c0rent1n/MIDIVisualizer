@@ -1537,15 +1537,24 @@ void Renderer::keyPressed(int key, int action) {
 	}
 }
 
-void Renderer::playPause(float timerStart) {
-	_shouldPlay = !_shouldPlay;
+void Renderer::updateAudioPosition() {
 	if (_soundLoaded) {
 		if (_shouldPlay) {
-			_timerStart = timerStart;
-			std::cout << "[AUDIO] File Starting/Resuming..." << (timerStart) << std::endl;
 			// ma_sound_seek_to_pcm_frame(&_sound, static_cast<int>(timerStart * 44100));
+			ma_sound_seek_to_pcm_frame(&_sound, 0);
+			if (_timer <= _state.prerollTime) {
+				std::cout << "[AUDIO] Starts in " << (static_cast<int> (_state.prerollTime) * 1000) << "ms."  << std::endl;
+				ma_sound_set_start_time_in_pcm_frames(&_sound, static_cast<int>(ma_engine_get_time_in_pcm_frames(ma_sound_get_engine(&_sound)) + _state.prerollTime * ma_engine_get_sample_rate(ma_sound_get_engine(&_sound))));
+			} else {
+				std::cout << "[AUDIO] seek " << (static_cast<int>((_timer) * ma_engine_get_sample_rate(ma_sound_get_engine(&_sound)))) << "ms." << std::endl;
+				ma_sound_seek_to_pcm_frame(&_sound, static_cast<int>(_timer * ma_engine_get_sample_rate(ma_sound_get_engine(&_sound))));
+			}
+
+			std::cout << "[AUDIO] File Starting/Resuming..." << static_cast<int>(_timer * 1000) << "ms. Preroll: " << _state.prerollTime << std::endl;
+
 			ma_sound_start(&_sound);
 			std::cout << "[AUDIO] File Started/Resumed." << std::endl;
+
 		} else {
 			std::cout << "[AUDIO] File Pausing..." << std::endl;
 			ma_sound_stop(&_sound);
@@ -1554,22 +1563,20 @@ void Renderer::playPause(float timerStart) {
 	}
 }
 
+void Renderer::playPause(float timerStart) {
+	_shouldPlay = !_shouldPlay;
+	_timerStart = timerStart;
+	updateAudioPosition();
+}
+
 void Renderer::reset() {
 	_timer = -_state.prerollTime;
 	_timerStart = DEBUG_SPEED * float(glfwGetTime()) + (_shouldPlay ? _state.prerollTime : 0.0f);
 	_scene->resetParticles();
 
-	if (_soundLoaded) {
-		// Restart sound
-		std::cout << "[AUDIO] Restarting sound..." << std::endl;
-
-		ma_sound_seek_to_pcm_frame(&_sound, 0);
-
-		if (_shouldPlay) {
-			// In most cases, the sound is already started and this call would be useless, but if the sound has arrived to its end while the scene is still playing, it's required to start it again
-			ma_sound_start(&_sound);
-		}
-	}
+	// Restart sound
+	std::cout << "[AUDIO] Restarting sound..." << std::endl;
+	updateAudioPosition();
 }
 
 void Renderer::setState(const State & state){
